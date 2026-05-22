@@ -42,24 +42,23 @@ export function Button({
   )
 }
 
-interface ChildrenProps {
+interface ChildrenProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode
-  className?: string
 }
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 
-export function PageShell({ children, className }: ChildrenProps) {
+export function PageShell({ children, className, ...props }: ChildrenProps) {
   return (
-    <div className={cn('mx-auto max-w-6xl space-y-6 py-2', className)}>
+    <div className={cn('mx-auto max-w-6xl space-y-6 py-2', className)} {...props}>
       {children}
     </div>
   )
 }
 
-export function Surface({ children, className }: ChildrenProps) {
+export function Surface({ children, className, ...props }: ChildrenProps) {
   return (
-    <div className={cn('rounded-2xl border border-border bg-background/60 backdrop-blur-sm', className)}>
+    <div className={cn('rounded-2xl border border-border bg-background/60 backdrop-blur-sm', className)} {...props}>
       {children}
     </div>
   )

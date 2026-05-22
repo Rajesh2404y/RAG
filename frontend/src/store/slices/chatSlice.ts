@@ -1,13 +1,14 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { chatApi } from '../../services/chatApi'
 
-interface Message { id: string; role: 'user' | 'assistant'; content: string; sources?: any[]; created_at: string }
-interface ChatSession { id: string; title: string | null; collection_id: string | null; created_at: string; messages?: Message[] }
+export interface Message { id: string; role: 'user' | 'assistant'; content: string; sources?: any[]; created_at: string }
+export interface ChatSession { id: string; title: string | null; collection_id: string | null; created_at: string; messages?: Message[] }
 interface ChatState {
   sessionId: string | null
   messages: Message[]
   sessions: ChatSession[]
   sessionsLoading: boolean
+  sessionLoading: boolean
   streaming: boolean
   retrievalStage: { stage: string; label: string; detail?: string } | null
   retrievalSources: any[]
@@ -20,6 +21,7 @@ const initialState: ChatState = {
   messages: [],
   sessions: [],
   sessionsLoading: false,
+  sessionLoading: false,
   streaming: false,
   retrievalStage: null,
   retrievalSources: [],
@@ -79,17 +81,32 @@ const chatSlice = createSlice({
       .addCase(fetchChatSessions.fulfilled, (state, action) => {
         state.sessionsLoading = false
         state.sessions = action.payload
+        state.error = null
       })
-      .addCase(fetchChatSessions.rejected, (state) => { state.sessionsLoading = false })
+      .addCase(fetchChatSessions.rejected, (state, action) => { state.sessionsLoading = false; state.error = action.error.message ?? 'Could not load chat sessions' })
+      .addCase(loadChatSession.pending, (state) => { state.sessionLoading = true; state.error = null })
       .addCase(loadChatSession.fulfilled, (state, action) => {
+        state.sessionLoading = false
         state.sessionId = action.payload.id
         state.messages = action.payload.messages ?? []
+        state.retrievalSources = []
+        state.retrievalStage = null
+        state.error = null
         localStorage.setItem('active_chat_session_id', action.payload.id)
+      })
+      .addCase(loadChatSession.rejected, (state, action) => {
+        state.sessionLoading = false
+        state.sessionId = null
+        state.messages = []
+        state.error = action.error.message ?? 'Could not load chat session'
+        localStorage.removeItem('active_chat_session_id')
       })
       .addCase(renameChatSession.fulfilled, (state, action) => {
         const session = state.sessions.find((item) => item.id === action.payload.id)
         if (session) session.title = action.payload.title
+        state.error = null
       })
+      .addCase(renameChatSession.rejected, (state, action) => { state.error = action.error.message ?? 'Could not rename chat' })
       .addCase(deleteChatSession.fulfilled, (state, action) => {
         state.sessions = state.sessions.filter((item) => item.id !== action.meta.arg)
         if (state.sessionId === action.meta.arg) {
@@ -97,7 +114,9 @@ const chatSlice = createSlice({
           state.messages = []
           localStorage.removeItem('active_chat_session_id')
         }
+        state.error = null
       })
+      .addCase(deleteChatSession.rejected, (state, action) => { state.error = action.error.message ?? 'Could not delete chat' })
   },
 })
 

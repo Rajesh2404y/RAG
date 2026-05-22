@@ -1,4 +1,4 @@
-import { useState, KeyboardEvent, useRef, useEffect, useCallback } from 'react'
+import { KeyboardEvent, useRef, useEffect, useCallback } from 'react'
 import { Loader2, Paperclip, Send, Sparkles } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import {
@@ -9,10 +9,13 @@ import {
 import { fetchNotifications } from '../../store/slices/notificationsSlice'
 import { addToast } from '../../store/slices/uiSlice'
 
-interface Props { collectionId: string }
+interface Props {
+  collectionId: string
+  value: string
+  onChange: (value: string) => void
+}
 
-export function ChatInput({ collectionId }: Props) {
-  const [value, setValue] = useState('')
+export function ChatInput({ collectionId, value, onChange }: Props) {
   const dispatch = useAppDispatch()
   const sessionId = useAppSelector((s) => s.chat.sessionId)
   const streaming = useAppSelector((s) => s.chat.streaming)
@@ -23,7 +26,7 @@ export function ChatInput({ collectionId }: Props) {
     const content = value.trim()
     const userTempId = `pending-user-${crypto.randomUUID()}`
     const assistantTempId = `pending-assistant-${crypto.randomUUID()}`
-    setValue('')
+    onChange('')
     dispatch(setRetrievalSources([]))
     dispatch(setRetrievalStage({ stage: 'queued', label: 'Getting ready', detail: 'Reading your question' }))
     dispatch(addMessage({ id: userTempId, role: 'user', content, created_at: '' }))
@@ -37,7 +40,10 @@ export function ChatInput({ collectionId }: Props) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ collection_id: collectionId, message: content, session_id: sessionId, stream: true }),
       })
-      if (!res.ok || !res.body) throw new Error('Chat request failed')
+      if (!res.ok || !res.body) {
+        const detail = await res.text().catch(() => '')
+        throw new Error(detail || 'Chat request failed')
+      }
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
@@ -50,7 +56,7 @@ export function ChatInput({ collectionId }: Props) {
         for (const line of lines) {
           if (!line.startsWith('data:')) continue
           const payload = line.replace('data: ', '')
-          if (payload === '[DONE]') break
+          if (payload === '[DONE]') continue
           try {
             const event = JSON.parse(payload)
             const { chunk: text, session_id, message, retrieval_stage, retrieval, error } = event
@@ -74,14 +80,15 @@ export function ChatInput({ collectionId }: Props) {
       dispatch(fetchChatSessions())
       dispatch(fetchNotifications())
       dispatch(addToast({ type: 'success', message: 'Answer ready' }))
-    } catch {
-      dispatch(finalizeAssistant({ content: 'Chat request failed. Please retry.' }))
-      dispatch(addToast({ type: 'error', message: 'Chat request failed. Please retry.' }))
+    } catch (error) {
+      const message = error instanceof Error && error.message ? error.message : 'Chat request failed. Please retry.'
+      dispatch(finalizeAssistant({ content: message }))
+      dispatch(addToast({ type: 'error', message }))
     } finally {
       dispatch(setStreaming(false))
       textareaRef.current?.focus()
     }
-  }, [collectionId, dispatch, sessionId, streaming, value])
+  }, [collectionId, dispatch, onChange, sessionId, streaming, value])
 
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
@@ -98,7 +105,7 @@ export function ChatInput({ collectionId }: Props) {
           <textarea
             ref={textareaRef}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => onChange(e.target.value)}
             onKeyDown={onKey}
             placeholder="Ask about your documents..."
             rows={2}

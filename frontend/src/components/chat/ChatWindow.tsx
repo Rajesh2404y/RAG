@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { useRef, useEffect, useMemo, useState } from 'react'
 import { Bot, FileSearch, MessageSquare, Search, Sparkles } from 'lucide-react'
 import { ChatMessage } from './ChatMessage'
 import { ChatInput } from './ChatInput'
@@ -17,6 +17,7 @@ export function ChatWindow({ collectionId }: Props) {
   const streaming = useAppSelector((s) => s.chat.streaming)
   const retrievalStage = useAppSelector((s) => s.chat.retrievalStage)
   const retrievalSources = useAppSelector((s) => s.chat.retrievalSources)
+  const [draft, setDraft] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const visibleMessages = useMemo(() => messages.slice(-80), [messages])
 
@@ -42,6 +43,8 @@ export function ChatWindow({ collectionId }: Props) {
               {PROMPTS.map(({ label, icon: Icon }) => (
                 <button
                   key={label}
+                  type="button"
+                  onClick={() => setDraft(label)}
                   className="premium-card rounded-xl p-4 text-left text-sm font-medium"
                 >
                   <Icon className="mb-2.5 h-4 w-4 text-primary" />
@@ -115,7 +118,7 @@ export function ChatWindow({ collectionId }: Props) {
         <div ref={bottomRef} />
       </div>
 
-      <ChatInput collectionId={collectionId} />
+      <ChatInput collectionId={collectionId} value={draft} onChange={setDraft} />
     </div>
   )
 }
